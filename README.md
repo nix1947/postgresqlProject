@@ -11,12 +11,7 @@
 - [Options](#options)
 - [Arguments](#arguments)
 - [Parameters](#parameters)
-- [Aggregate function](#aggregate-function)
-- [MIN](#min)
-- [MAX](#max)
-- [AVERAGE](#average)
-- [SUM](#sum)
-- [COUNT](#count)
+  - [Managing triggers](#managing-triggers)
 
 ## SQL logging enable in Django 
 - This will log the the sql executed in debug mode
@@ -452,15 +447,191 @@ select * from customer right join payment
 using(customer_id)
 ```
 
-## Aggregate function  
+## Aggregate function  - 
+Aggregate functions perform a calculation on a set of tows and return a single row.
+Can be used in `select, having and group by` clauses.
 
-## MIN 
+### MIN 
+- Returns the minimum value
+```
+select customer_id, min(amount) from payment group by customer_id having min(amount) <  8.99;
+```
 
-## MAX
+### MAX
+- Returns the max value in a set of values.
+```
+select flim_id, title 
+from film 
+where replacement_cost = (
+    select max(replacement_cost) from film
+)
+order by 
+title;
+```
 
-## AVERAGE
+### AVG
+- Ignore null values
+- Used to calculate the average value of a numeric column. 
+```
+select * from film;
 
-## SUM 
+select Round(AVG(replacement_cost),2) avg_replacement_cost from film
+having AVG(amount) >5 order by customer_id;
 
-## COUNT
+select customer_id max(amount) from payment group by customer_id having max(amount) > 8.99
+
+```
+
+### SUM 
+- Return the sum of values distinct values.
+```
+select rating, sum(rental_duration) from film group by rating order by rating;
+```
+
+
+
+### COUNT
+- Return the number of rows that match a specific condition of a query.
+```
+select count(*) from film
+select customer_id count(customer_id) from payment 
+group by customer_id having count(customer_id) > 40;
+```
+
+## Trigger 
+- A postgresql trigger is a function invoked automatically whenever an event associated with a table occurs.
+- Event could be `INSERT   UPDATE, DELETE, TRUNCATE`
+- A trigger is a special user defined function and binds to it a table
+- You can specify whether the trigger is invoked before or after an event.
+
+### Types of trigger
+- Row Trigger
+   - Trigger is executed for every effected rows if it effect 20 rows, trigger will be invoked 20 times.
+- Statement level trigger.   
+    - Invoked only once a time either `Before` or `After`.
+- When you used trigger it can be useful for logging the data changes.
+- Maintain data integrity by logging the changes.
+- check activities of applications accessing the database.
+- Used to set the history of data.
+
+### Drawbacks of triggers
+- You must know the trigger, and also you need to understand the logic.
+- Postgresql implement SQL standard triggers plus.
+- Postgresql firs trigger for the Truncate event
+- Postgresql allow you to define statement level trigger on views.
+- postgresql requires you to define a user defined function as the action of the trigger.
+
+
+### Creating a first trigger
+- Create a trigger function using `CREATE FUNCTION` statement.
+- Bind this trigger function to a table using `CREATE TRIGGER` statement.
+- Trigger function is similar to any ordinary function, except that it does not take any arguments and has return value type trigger.
+
+
+**Syntax for Trigger function**
+```
+CREATE FUNCTION trigger_function() RETURN trigger AS
+```
+
+**Syntax for Trigger**
+```
+CREATE TRIGGER trigger_name { BEFORE | AFTER | INSTEAD OF} {EVENT [OR...]}
+on table_name 
+[FOR [EACH]{ROW | STATEMENT }]
+EXECUTE PROCEDURE trigger_function
+```
+
+**Create a table first**
+```sql
+CREATE TABLE employees(
+    id serial primary key, 
+    first_name varchar(40) not null,
+    last_name varchar(40) not null
+);
+```
+*create an `employee_audits` table to store the logs*
+```sql
+create table employee_audits(
+    id serial primary key,
+    employee_id int4 not null,
+    last_name varchar(40) not null,
+    changed_on timestamp(6) not nul
+)
+```
+
+**Creating a trigger function to track the changes in employee table**
+```sql
+CREATE FUNCTION public.log_last_name_changes()
+    RETURNS trigger
+    LANGUAGE 'plpgsql'
+    COST 100
+    VOLATILE NOT LEAKPROOF
+As $BODY$
+BEGIN
+    IF NEW.lastname <> OLD.last_name THEN
+        INSERT INTO employee_audits(employee_id, last_name, changed_on)
+        VALUES(OLD.id, OLD.last_name, now());
+    END IF;
+
+    RETURN NEW;
+
+END;
+$BODY$;
+
+ALTER FUNCTION public.log_last_name_changes()
+    OWNER TO postgres;
+```
+
+**Create a trigger and connect table with trigger function**
+```sql
+CREATE TRIGGER last_name_changes
+    BEFORE UPDATE 
+    ON employees
+    FOR EACH ROW
+    EXECUTE PROCEDURE log_last_name_changes()
+```
+
+**Test the trigger**
+```sql
+select * from employees;
+
+insert into employees(id, first_name, last_name)
+values( 'Manoj', 'Gautam')
+
+insert into employees(id, first_name, last_name)
+value('Amar', 'Subedi')
+
+update employees set last_name='SSubedi' where id='2'
+
+select * from employee_audits
+```
+
+### Managing triggers
+- It includes, `modifying trigger, disabling trigger and removing trigger`
+
+**Modify trigger**
+```sql
+ALTER TRIGGER trigger_name ON table_name  RENAME TO new_name 
+```
+```sql
+ALTER TRIGGER last_name_changes on employees
+RENAME TO log_last_name_changes
+```
+
+**Disabling trigger**
+```sql 
+ALTER TABLE table_name DISABLE TRIGGER trigger_name | ALL
+```
+```sql
+ALTER TABLE employees
+DISABLE TRIGGER log_last_name_changes;
+```
+
+**Remove a trigger**
+```sql 
+DROP TRIGGER [IF EXISTS] trigger_name  ON table_name
+```
+```sql
+DROP TRIGGER log_last_name_changes ON employees;
+```
 

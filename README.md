@@ -6,11 +6,41 @@
 - [Drop a database](#drop-a-database)
 - [Connect to a database](#connect-to-a-database)
 - [Create a table](#create-a-table)
-- [General options](#general-options)
-- [Definition](#definition)
-- [Options](#options)
-- [Arguments](#arguments)
-- [Parameters](#parameters)
+- [Insert data](#insert-data)
+- [Run sql file](#run-sql-file)
+- [Alter table](#alter-table)
+- [Schema](#schema)
+- [Table Space](#table-space)
+- [Functions in postgresql](#functions-in-postgresql)
+- [Using cast and operators](#using-cast-and-operators)
+- [Sequences](#sequences)
+- [Creating extension](#creating-extension)
+- [Creating stored procedure.](#creating-stored-procedure)
+- [SQL UNION operator.](#sql-union-operator)
+- [Union All operator.](#union-all-operator)
+- [Intersect operator](#intersect-operator)
+- [Except Operator](#except-operator)
+- [In operator.](#in-operator)
+- [And operator](#and-operator)
+- [Or operator](#or-operator)
+- [Using And and OR](#using-and-and-or)
+- [Like operator](#like-operator)
+- [Table joins](#table-joins)
+  - [Left join](#left-join)
+  - [Left join](#left-join-1)
+  - [Full outer join](#full-outer-join)
+  - [Cross join](#cross-join)
+  - [Natural join](#natural-join)
+- [Aggregate function  -](#aggregate-function---)
+  - [MIN](#min)
+  - [MAX](#max)
+  - [AVG](#avg)
+  - [SUM](#sum)
+  - [COUNT](#count)
+- [Trigger](#trigger)
+  - [Types of trigger](#types-of-trigger)
+  - [Drawbacks of triggers](#drawbacks-of-triggers)
+  - [Creating a first trigger](#creating-a-first-trigger)
   - [Managing triggers](#managing-triggers)
 
 ## SQL logging enable in Django 
@@ -75,7 +105,7 @@ create table person(
 )
 ```
 - Listing of table 
-- ```
+ ```
   \d # describe the table
   \l # list the tables
   \c account # connect to account database.

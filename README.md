@@ -42,6 +42,16 @@
   - [Drawbacks of triggers](#drawbacks-of-triggers)
   - [Creating a first trigger](#creating-a-first-trigger)
   - [Managing triggers](#managing-triggers)
+- [Views](#views)
+  - [Benefits of views](#benefits-of-views)
+  - [Creating views](#creating-views)
+  - [Modifying views](#modifying-views)
+  - [Updatable views in Postgres](#updatable-views-in-postgres)
+  - [Materialize view](#materialize-view)
+  - [Creating Materialized view](#creating-materialized-view)
+- [Analytic functions (Window function)](#analytic-functions-window-function)
+  - [Postgresql window function](#postgresql-window-function)
+  - [ROW_NUMBER() function](#row_number-function)
 
 ## SQL logging enable in Django 
 - This will log the the sql executed in debug mode
@@ -664,4 +674,165 @@ DROP TRIGGER [IF EXISTS] trigger_name  ON table_name
 ```sql
 DROP TRIGGER log_last_name_changes ON employees;
 ```
+## Views
+- View is basically a stored query(SELECT statement)
+- A view is a virtual table aka logical table.
+- A view is define from one or more table and tables are referred as `base` table. 
+- Views itself don't store data.
+- Special view known as `materialized view` that store data physically and they reereshes data periodically 
+- Materialized views are much faster to access data with caching features
 
+### Benefits of views
+- Views simplifies complexity of queries
+- Can help to hide sensitive data from table.
+- You can grant permissions to users on views.
+- View also provide consistent layer even when the columns of the underlying table structure.
+
+
+### Creating views
+```sql 
+CREATE VIEW view_name AS select * from employee where last_name like 'G%'
+```
+
+### Modifying views
+```sql 
+CREATE OR REPLACE view_name query
+```
+
+```sql
+alter view customer_master RENAME TO customer_info;
+
+DROP VIEW [IF EXISTS ] view_name;
+
+DROP VIEW IF EXISTS customer_info;  180998
+```
+
+### Updatable views in Postgres
+- Conditions
+  - the defining query of the view must have exactly one entry in the FROM clause.
+  - The defining query must not contain one of the following clause
+    - `group by, having, limit, offset, distinct, with, union, intersect and except`
+    - Must not contain any `window function, aggregate function  and set returning function`
+    - An updatable view may contain both updatable and non-updatable columns.
+  
+**Creating postgresql updatable views**
+```sql 
+CREATE view usa_cities AS SELECT
+city, 
+country_id, 
+from city 
+where country_id=103
+```
+
+```sql 
+select * from usa_cities
+```
+
+```sql
+insert into usa_cities(city, country_id)
+values('San Jose', 103);
+
+select * from city where countryid = 103 order by last_update desc;
+```
+
+### Materialize view
+- M views allow you to store result of a query physically and update the data periodically.
+- M view caches the result of a complex expensive query and then allow you to refresh this result periodically.
+- M views are useful in many cases that require fast data access.
+- Used in dta warehouse or business intelligent applications.
+
+### Creating Materialized view
+```sql 
+CREATE MATERIALIZED VIEW view_name 
+AS
+query 
+with DAta
+
+-- Use REFRESH MATERIALIZED VIEW IN VIEW_NAME
+-- Locks entire table while refreshing the materialized view
+REFRESH MATERIALIZED VIEW view_name;
+
+-- To avoid locking of table while refreshing use `concurrently` keyword.
+REFRESH  MATERIALIZED VIEW CONCURRENTLY view_name
+```
+- To use `concurrent` option M view must have an unique index.
+- Use `DROP` keyword to drop the materialized views.
+
+
+## Analytic functions (Window function)
+- Analytic functions are those function that compute an aggregate value based on a group of rows.
+- Unlike aggregate functions, they can return multiple rows for each group.
+
+### Postgresql window function 
+**Syntax**
+```sql 
+window_function(arg1, arg2,..) OVER (PARTITION BY expression ORDER BY expression)
+```
+
+**Types of analytic functions**
+- ROW_NUMBER
+- RANK
+- DENSE_RANK functions
+- FIRST_VALUE
+- LAST_VALUE functions
+- LAG and LEAD functions
+
+Let's create some sample tables and use analytics(window) functions
+
+```sql 
+create table product_groups(
+    group_id serial primary key, 
+    group_name varchar(255) not null
+);
+
+create table PRODUCT(
+    product_id serial primary key, 
+    product_name varchar(255) not null,
+    price decimal(11, 2),
+    group_id int not null,
+    foreign key(group_id) references product_groups(group_id)
+);
+
+insert into product_groups(group_name)
+values("Smart Phone")
+("Laptop")
+("Tablet");
+
+insert into products(product_name, group_id, price)
+values
+('Microsoft Lumia', 1, 200)
+('HTC One', 1, 200)
+('HP Elite', 2, 2300);
+
+select * from products;
+select * from product_groups; 
+```
+**Using of aggregate functions**
+```sql 
+select AVG(price) from products;
+```
+
+**Using `AVG` as a window function**
+```sql
+select 
+product_name, 
+price, 
+group_name,
+AVG(price) OVER (PARTITION BY group_name)
+FROM 
+products 
+INNER JOIN product_groups USING(group_id)
+```
+
+### ROW_NUMBER() function 
+- Allows us to assign numbering to the rows of the result set data. 
+```sql 
+select product_name, group_name, price
+ROW_NUMBER() over (
+    partition by GROUP_NAME 
+    ORDER BY 
+    price
+)
+FROM products
+INNER JOIN product_groups USING(GROUP_ID)
+```

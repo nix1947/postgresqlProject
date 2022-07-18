@@ -41,6 +41,7 @@
   - [Types of trigger](#types-of-trigger)
   - [Drawbacks of triggers](#drawbacks-of-triggers)
   - [Creating a first trigger](#creating-a-first-trigger)
+  - [Trigger example for tracking histories.](#trigger-example-for-tracking-histories)
   - [Managing triggers](#managing-triggers)
 - [Views](#views)
   - [Benefits of views](#benefits-of-views)
@@ -547,6 +548,7 @@ group by customer_id having count(customer_id) > 40;
 ### Types of trigger
 - Row Trigger
    - Trigger is executed for every effected rows if it effect 20 rows, trigger will be invoked 20 times.
+   - `INSERT, UPDATE, DELETE, or TRUNCATE` emit triggers.
 - Statement level trigger.   
     - Invoked only once a time either `Before` or `After`.
 - When you used trigger it can be useful for logging the data changes.
@@ -644,6 +646,126 @@ value('Amar', 'Subedi')
 update employees set last_name='SSubedi' where id='2'
 
 select * from employee_audits
+```
+### Trigger example for tracking histories. 
+```sql 
+create table if not exists book_audit_log(
+    book_id bigint not null,  -- ID of book
+    old_row_data jsonb, -- state of book before the execution of INSERT, UPDATE, DELETE
+    new_row_data jsonb, -- capture the state of the book book after the execution of INSERT, UPDATE and DELETE
+    dml_type dml_type not null, -- Enum type CREATE TYPE AS ENUM('INSERT', 'UPDATE', 'DELETE')
+    dml_timestamp timestamp not null, -- Create current timestamp 
+    dml_created_by varchar(255) not null, -- stores the application user who generated the current INSERT, UPDATE, or DELETE DML statement.
+    primary key (book_id, dml_type, dml_timestamp) --  Primary Key of the book_audit_log is a composite of the book_id, dml_type, and dml_timestamp since a book record can have multiple associated book_audit_log records
+)
+```
+
+Here, 
+ + the TG_OP variable provides the type of the current executing DML statement.
+ + the NEW keyword is also a special variable that stores the state of the current modifying record after the current DML statement is executed.
+ + the OLD keyword is also a special variable that stores the state of the current modifying record before the current DML statement is executed.
+ + the to_jsonb PostgreSQL function allows us to transform a table row to a JSONB object, that’s going to be saved in the old_row_data or new_row_data table columns.
+ + the dml_timestamp value is set to the CURRENT_TIMESTAMP
+ + the dml_created_by column is set to the value of the var.logged_user PostgreSQL session variable, which was previously set by the application with the currently logged user, like this:
+
+**Creating triggers** 
+```sql 
+create or replace function book_audit_trigger_func() 
+returns trigger AS $body$
+begin 
+    if(TG_OP = 'INSERT') then 
+        insert into book_audit_log(
+            book_id,
+            old_row_data,
+            new_row_data, 
+            dml_type, 
+            dml_timestamp,
+            dml_created_by
+        ) values(
+            NEW.id  -- id
+            null, -- old_row_data
+            to_jsonb(NEW), -- new_row_data
+            'INSERT', -- dml_type
+            CURRENT_TIMESTAMP,  -- dml_timestamp
+            current_setting('var.logged_user') -- current logged in user
+        );
+        RETURN NEW; 
+    
+    elsif(TG_OP = 'UPDATE') then 
+         insert into book_audit_log(
+            book_id,
+            old_row_data,
+            new_row_data, 
+            dml_type, 
+            dml_timestamp,
+            dml_created_by
+        ) values(
+            NEW.id  -- id
+            to_josnb(OLD), -- old_row_data
+            to_jsonb(NEW), -- new_row_data
+            'UPDATE', -- dml_type
+            CURRENT_TIMESTAMP,  -- dml_timestamp
+            current_setting('var.logged_user') -- current logged in user
+        );
+        RETURN NEW; 
+    
+    elsif(TG_OP = 'DELETE') then 
+         insert into book_audit_log(
+            book_id,
+            old_row_data,
+            new_row_data, 
+            dml_type, 
+            dml_timestamp,
+            dml_created_by
+        ) values(
+            NEW.id  -- id
+            to_josnb(OLD), -- old_row_data
+            null, -- new_row_data
+            'DELETE', -- dml_type
+            CURRENT_TIMESTAMP,  -- dml_timestamp
+            current_setting('var.logged_user') -- current logged in user
+        );
+        RETURN OLD;
+    end if; 
+
+end
+$body$
+language plpgsql
+```
+
+**Binding trigger function with trigger**
+```sql
+create trigger book_audit_trigger
+after insert or update or delete on  book 
+for each row execute function book_audit_trigger()
+```
+
+**Testing the triggers** 
+```sql 
+INSERT INTO book (
+    id,
+    author,
+    price_in_cents,
+    publisher,
+    title
+)
+VALUES (
+    1,
+    'Vlad Mihalcea',
+    3990,
+    'Amazon',
+    'High-Performance Java Persistence 1st edition'
+)
+
+-- Update 
+UPDATE book
+SET price_in_cents = 4499
+WHERE id = 1
+
+-- Delete
+DELETE FROM book
+WHERE id = 1
+
 ```
 
 ### Managing triggers
